@@ -216,4 +216,10 @@ async def websocket_stream(websocket: WebSocket) -> None:
             connected_clients.remove(websocket)
 
 
+DOCS_DIR = BASE_DIR / "docs"
+DOCS_DIR.mkdir(parents=True, exist_ok=True)
+(DOCS_DIR / "assets").mkdir(parents=True, exist_ok=True)
+
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+app.mount("/docs", StaticFiles(directory=str(DOCS_DIR)), name="docs")
+

@@ -723,8 +723,172 @@ function connectStream() {
   };
 }
 
+// Guided Popup Tour & Interactive Walkthrough Engine
+const TOUR_STEPS = [
+  {
+    badge: "STEP 1 OF 5 // BASKET vs. BOX PARITY",
+    title: "1. Real-Time QQQ vs. Constituent Stock Box Tracker",
+    body: "QQQ is an ETF holding Nasdaq-100 stocks. Panel 01 continuously sums the weighted live prices of NVDA (24.8%), AAPL (24.1%), MSFT (22.6%), AMZN (15.0%), and META (13.5%) to compute the Synthetic Stock Box NAV ($500.00) and compares it tick-by-tick against the QQQ market price.",
+    formula: "Synthetic Box ($) = Σ (Shares_i × Price_i) | Spread ($) = QQQ − Box",
+    panelId: "panel-tracker",
+    shock: null,
+  },
+  {
+    badge: "STEP 2 OF 5 // JANE STREET $0.45 ARBITRAGE SCENARIO",
+    title: "2. Locking in the $500.45 QQQ vs. $500.00 Stock Box Gap",
+    body: "During fast market sweeps, QQQ surges to $500.45 while its underlying constituent stocks only sum to $500.00. Market makers instantly SELL SHORT the overpriced QQQ ETF at $500.45 and BUY the cheaper individual stocks at $500.00 to lock in the +$0.45/share spread.",
+    formula: "QQQ ($500.45) − Stock Box ($500.00) = +$0.4500/sh (+9.00 bps Gross Edge)",
+    panelId: "panel-tracker",
+    shock: "JANE_STREET_500_45",
+  },
+  {
+    badge: "STEP 3 OF 5 // PYTORCH MILLISECOND LEAD-LAG PREDICTOR",
+    title: "3. Detecting NVDA Breakouts 100ms Before QQQ Reacts",
+    body: "Our PyTorch TemporalCrossAttentionNet (Conv1D + GRU + Cross-Lag Attention) monitors 20 lookback ticks across all 5 stocks. When NVDA jumps +1.85%, the neural network detects the positive cross-correlation peak (τ* = 100ms head start) and predicts ΔQQQ before the ETF catches up.",
+    formula: "PyTorch Attention: α_τ = Softmax(Q_t · K_{t-τ}^T / √d) → Predicts ΔQQQ (+200ms)",
+    panelId: "panel-pytorch",
+    shock: "NVDA_BREAKOUT",
+  },
+  {
+    badge: "STEP 4 OF 5 // 3D ARBITRAGE PRICE GAP SURFACE",
+    title: "4. WebGL 3D Price Gap Topology (Time × Lag τ & NVDA Shocks)",
+    body: "Panel 03 renders the live 3D arbitrage basis surface Z = QQQ − Box ($). Amber/Crimson ridges (Z > +$0.12) reveal overpriced QQQ conversion opportunities, while Emerald troughs (Z < -$0.12) reveal underpriced QQQ reversal opportunities across reaction lag horizons.",
+    formula: "Surface Z(t, τ) = Gap(t)·e^(-τ/180ms) + Neural_Lead_Wave(τ)",
+    panelId: "panel-surface3d",
+    shock: null,
+  },
+  {
+    badge: "STEP 5 OF 5 // LIVE ARBITRAGE TRADE TICKET & FEE WATERFALL",
+    title: "5. Multi-Leg Basket Execution & Net Profit After Fees",
+    body: "Panel 04 calculates the exact share quantities to trade for QQQ and all 5 constituent stocks, deducts institutional DMA midpoint slippage (-0.28 bps), SEC/TAF/exchange fees (-0.09 bps), and borrow costs (-0.04 bps), and logs atomic multi-leg fills in the Realized PnL Blotter.",
+    formula: "Net Profit ($) = Gross_Box_Spread + PyTorch_Lead_Alpha − (Slippage + SEC_TAF + Borrow)",
+    panelId: "panel-ticket",
+    shock: "JANE_STREET_500_45",
+  },
+];
+
+let currentTourStep = 0;
+let tourAutoplayTimer = null;
+
+function clearPanelSpotlights() {
+  ["panel-tracker", "panel-pytorch", "panel-surface3d", "panel-ticket"].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.classList.remove("panel-tour-spotlight");
+  });
+}
+
+async function startGuidedTour(stepIndex = 0, autoplay = false) {
+  currentTourStep = ((stepIndex % TOUR_STEPS.length) + TOUR_STEPS.length) % TOUR_STEPS.length;
+  const step = TOUR_STEPS[currentTourStep];
+
+  const popup = document.getElementById("tour-popup-card");
+  popup.classList.remove("hidden");
+
+  document.getElementById("tour-step-badge").textContent = step.badge;
+  document.getElementById("tour-popup-title").textContent = step.title;
+  document.getElementById("tour-popup-body").textContent = step.body;
+  document.getElementById("tour-popup-formula").textContent = step.formula;
+
+  const dots = document.querySelectorAll("#tour-dots-container .tour-dot");
+  dots.forEach((d, idx) => {
+    d.className = idx === currentTourStep ? "tour-dot active" : "tour-dot";
+  });
+
+  clearPanelSpotlights();
+  const targetPanel = document.getElementById(step.panelId);
+  if (targetPanel) {
+    targetPanel.classList.add("panel-tour-spotlight");
+  }
+
+  if (step.shock) {
+    await triggerShock(step.shock);
+  }
+
+  if (autoplay) {
+    startTourAutoplayTimer();
+  }
+}
+
+function nextTourStep() {
+  startGuidedTour(currentTourStep + 1, Boolean(tourAutoplayTimer));
+}
+
+function prevTourStep() {
+  startGuidedTour(currentTourStep - 1, Boolean(tourAutoplayTimer));
+}
+
+function startTourAutoplayTimer() {
+  stopTourAutoplayTimer();
+  const btn = document.getElementById("btn-tour-autoplay");
+  if (btn) {
+    btn.textContent = "⏸ Playing Tour";
+    btn.className = "btn btn-xs btn-emerald";
+  }
+  tourAutoplayTimer = setInterval(() => {
+    currentTourStep = (currentTourStep + 1) % TOUR_STEPS.length;
+    startGuidedTour(currentTourStep, true);
+  }, 4200);
+}
+
+function stopTourAutoplayTimer() {
+  if (tourAutoplayTimer) {
+    clearInterval(tourAutoplayTimer);
+    tourAutoplayTimer = null;
+  }
+  const btn = document.getElementById("btn-tour-autoplay");
+  if (btn) {
+    btn.textContent = "▶ Auto-Play";
+    btn.className = "btn btn-xs btn-amber";
+  }
+}
+
+function toggleTourAutoplay() {
+  if (tourAutoplayTimer) {
+    stopTourAutoplayTimer();
+  } else {
+    startTourAutoplayTimer();
+  }
+}
+
+function closeGuidedTour() {
+  stopTourAutoplayTimer();
+  clearPanelSpotlights();
+  const popup = document.getElementById("tour-popup-card");
+  if (popup) popup.classList.add("hidden");
+}
+
+// Flowcharts, Video Walkthrough & Annotated Screenshots Modal
+function openDocsModal(defaultTab = "video") {
+  const modal = document.getElementById("docs-modal");
+  if (modal) modal.classList.remove("hidden");
+  switchDocsTab(defaultTab);
+}
+
+function closeDocsModal() {
+  const modal = document.getElementById("docs-modal");
+  if (modal) modal.classList.add("hidden");
+}
+
+function switchDocsTab(tabName) {
+  ["video", "flowcharts", "screenshots"].forEach((t) => {
+    const pane = document.getElementById(`docs-tab-${t}`);
+    const btn = document.getElementById(`tab-btn-${t}`);
+    if (pane) pane.className = t === tabName ? "docs-tab-pane" : "docs-tab-pane hidden";
+    if (btn) btn.className = t === tabName ? "docs-tab active" : "docs-tab";
+  });
+}
+
+function seekVideoChapter(seconds) {
+  const vid = document.getElementById("walkthrough-video-el");
+  if (vid) {
+    vid.currentTime = seconds;
+    vid.play().catch(() => {});
+  }
+}
+
 window.addEventListener("DOMContentLoaded", async () => {
   initCharts();
+  const params = new URLSearchParams(window.location.search);
   try {
     const res = await fetch("/api/snapshot");
     const snap = await res.json();
@@ -732,5 +896,16 @@ window.addEventListener("DOMContentLoaded", async () => {
   } catch (e) {
     console.warn("Initial snapshot fetch skipped:", e);
   }
-  connectStream();
+  if (!params.has("snapshot_only")) {
+    connectStream();
+  }
+
+  // Support URL query parameters (?tour_step=1..5 or ?modal=flowcharts)
+  if (params.has("tour_step")) {
+    const stepNum = parseInt(params.get("tour_step"), 10) - 1;
+    setTimeout(() => startGuidedTour(Math.max(0, stepNum), false), 200);
+  } else if (params.has("modal")) {
+    setTimeout(() => openDocsModal(params.get("modal") || "video"), 200);
+  }
 });
+

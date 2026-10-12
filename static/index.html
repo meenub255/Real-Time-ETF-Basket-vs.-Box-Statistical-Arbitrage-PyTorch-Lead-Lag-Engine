@@ -86,6 +86,12 @@
         <button id="btn-pause-stream" class="btn btn-outline" onclick="togglePauseStream()">
           ⏸ Freeze Tick
         </button>
+        <button class="btn btn-purple" onclick="startGuidedTour(0, true)" title="Launch auto-playing interactive tour with explanatory callout popups">
+          🎬 Guided Popup Tour
+        </button>
+        <button class="btn btn-cyan" onclick="openDocsModal()" title="View Architecture Flowcharts, Video Walkthrough & Annotated Screenshots">
+          📊 Flowcharts &amp; Video Guide
+        </button>
       </div>
     </div>
   </header>
@@ -93,7 +99,7 @@
   <!-- MAIN 2x2 INSTITUTIONAL QUANT WORKSPACE GRID -->
   <main class="workspace-grid">
     <!-- PANEL 1 (TOP LEFT): LIVE QQQ vs SYNTHETIC BOX CHART & CONSTITUENT BASKET TAPE -->
-    <section class="panel">
+    <section class="panel" id="panel-tracker">
       <div class="panel-header">
         <div>
           <h2 class="panel-title">
@@ -149,7 +155,7 @@
     </section>
 
     <!-- PANEL 2 (TOP RIGHT): PYTORCH LEAD-LAG PREDICTOR (NVDA -> QQQ MILLISECOND HEAD START) -->
-    <section class="panel">
+    <section class="panel" id="panel-pytorch">
       <div class="panel-header">
         <div>
           <h2 class="panel-title">
@@ -217,7 +223,7 @@
     </section>
 
     <!-- PANEL 3 (BOTTOM LEFT): 3D PRICE GAP SURFACE -->
-    <section class="panel">
+    <section class="panel" id="panel-surface3d">
       <div class="panel-header">
         <div>
           <h2 class="panel-title">
@@ -246,7 +252,7 @@
     </section>
 
     <!-- PANEL 4 (BOTTOM RIGHT): LIVE ARBITRAGE TRADE TICKET & EXECUTION BLOTTER -->
-    <section class="panel">
+    <section class="panel" id="panel-ticket">
       <div class="panel-header">
         <div>
           <h2 class="panel-title">
@@ -397,6 +403,160 @@
     </section>
   </main>
 
+  <!-- FLOATING INTERACTIVE CALLOUT POPUP FOR GUIDED VIDEO / WALKTHROUGH TOUR -->
+  <div id="tour-popup-card" class="tour-popup-card hidden">
+    <div class="tour-popup-header">
+      <span id="tour-step-badge" class="tour-step-badge mono">STEP 1 OF 5 // BASKET vs. BOX PARITY</span>
+      <div class="tour-header-actions">
+        <button id="btn-tour-autoplay" class="btn btn-xs btn-amber" onclick="toggleTourAutoplay()">▶ Auto-Play</button>
+        <button class="tour-close-btn" onclick="closeGuidedTour()">✕</button>
+      </div>
+    </div>
+    <h3 id="tour-popup-title" class="tour-popup-title">
+      1. Real-Time ETF vs. Constituent Stock Box Sum
+    </h3>
+    <p id="tour-popup-body" class="tour-popup-body">
+      QQQ is an ETF holding Nasdaq-100 stocks. This panel continuously sums the weighted live prices of NVDA (24.8%), AAPL (24.1%), MSFT (22.6%), AMZN (15.0%), and META (13.5%) to compute the exact Synthetic Box Fair Value ($500.00) and compares it tick-by-tick against the QQQ market price ($500.45).
+    </p>
+    <div id="tour-popup-formula" class="tour-popup-formula mono">
+      Gap ($) = QQQ_Market ($500.45) − Sum(w_i × P_i) ($500.00) = +$0.4500 (+9.00 bps)
+    </div>
+    <div class="tour-popup-footer">
+      <div class="tour-dots" id="tour-dots-container">
+        <span class="tour-dot active" onclick="startGuidedTour(0, false)"></span>
+        <span class="tour-dot" onclick="startGuidedTour(1, false)"></span>
+        <span class="tour-dot" onclick="startGuidedTour(2, false)"></span>
+        <span class="tour-dot" onclick="startGuidedTour(3, false)"></span>
+        <span class="tour-dot" onclick="startGuidedTour(4, false)"></span>
+      </div>
+      <div class="tour-nav-btns">
+        <button class="btn btn-xs btn-outline" onclick="prevTourStep()">◀ Prev</button>
+        <button class="btn btn-xs btn-emerald" onclick="nextTourStep()">Next Step ▶</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ARCHITECTURE FLOWCHARTS, VIDEO DEMO & ANNOTATED SCREENSHOTS MODAL -->
+  <div id="docs-modal" class="docs-modal-backdrop hidden" onclick="if(event.target===this) closeDocsModal()">
+    <div class="docs-modal-content">
+      <div class="docs-modal-header">
+        <div>
+          <span class="brand-badge">QUANT ARCHITECTURE &amp; VISUAL GUIDE</span>
+          <h2 class="docs-modal-title">Video Walkthrough with Popups, System Flowcharts &amp; Annotated Screenshots</h2>
+        </div>
+        <button class="btn btn-outline" onclick="closeDocsModal()">✕ Close Guide</button>
+      </div>
+
+      <div class="docs-tabs">
+        <button id="tab-btn-video" class="docs-tab active" onclick="switchDocsTab('video')">
+          🎬 Video Walkthrough (with Explanatory Popups)
+        </button>
+        <button id="tab-btn-flowcharts" class="docs-tab" onclick="switchDocsTab('flowcharts')">
+          🔀 System &amp; PyTorch Neural Flowcharts
+        </button>
+        <button id="tab-btn-screenshots" class="docs-tab" onclick="switchDocsTab('screenshots')">
+          📸 Annotated Screenshots &amp; Deep Explanations
+        </button>
+      </div>
+
+      <!-- TAB 1: VIDEO WALKTHROUGH WITH POPUPS -->
+      <div id="docs-tab-video" class="docs-tab-pane">
+        <div class="video-guide-layout">
+          <div class="video-player-box">
+            <video id="walkthrough-video-el" controls autoplay loop muted playsinline class="walkthrough-video">
+              <source src="/docs/assets/walkthrough_with_popups.mp4" type="video/mp4" />
+            </video>
+            <div class="video-caption mono">
+              1080p Annotated Walkthrough Video: Synchronized popup callouts explaining each stage of the Basket vs. Box arbitrage &amp; PyTorch Lead-Lag engine.
+            </div>
+          </div>
+          <div class="video-chapters-box">
+            <h4 class="chapter-heading">INTERACTIVE VIDEO CHAPTERS &amp; POPUP GUIDE</h4>
+            <div class="chapter-card" onclick="seekVideoChapter(0)">
+              <span class="chapter-time mono">00:00 – 00:04</span>
+              <strong>Popup 1: Real-Time QQQ vs. Synthetic Stock Box Sum</strong>
+              <p>Shows how NVDA, AAPL, MSFT, AMZN, and META are weighted and summed every 60ms to track the $500.00 Synthetic Box against QQQ.</p>
+            </div>
+            <div class="chapter-card" onclick="seekVideoChapter(4)">
+              <span class="chapter-time mono">00:04 – 00:08</span>
+              <strong>Popup 2: Jane Street $500.45 vs. $500.00 Conversion Gap (+$0.45)</strong>
+              <p>Demonstrates when QQQ trades at $500.45 while constituent stocks add up to $500.00—triggering a Short QQQ / Long Stock Basket box trade.</p>
+            </div>
+            <div class="chapter-card" onclick="seekVideoChapter(8)">
+              <span class="chapter-time mono">00:08 – 00:12</span>
+              <strong>Popup 3: PyTorch Lead-Lag Predictor (NVDA +1.85% Breakout)</strong>
+              <p>TemporalCrossAttentionNet detects an impulsive NVDA jump 100ms before QQQ reacts, predicting ΔQQQ and front-running alpha.</p>
+            </div>
+            <div class="chapter-card" onclick="seekVideoChapter(12)">
+              <span class="chapter-time mono">00:12 – 00:16</span>
+              <strong>Popup 4: 3D Price Gap Surface Topology</strong>
+              <p>Visualizes the arbitrage ridge (Z &gt; +$0.12) and discount trough (Z &lt; -$0.12) across Lead-Lag τ (ms) and NVDA Shock regimes.</p>
+            </div>
+            <div class="chapter-card" onclick="seekVideoChapter(16)">
+              <span class="chapter-time mono">00:16 – 00:20</span>
+              <strong>Popup 5: Multi-Leg Trade Ticket &amp; DMA Fee Waterfall</strong>
+              <p>Displays exact share counts for QQQ and all 5 stocks, deducts slippage/SEC/TAF/borrow fees, and logs the fill in the PnL Blotter.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 2: FLOWCHARTS -->
+      <div id="docs-tab-flowcharts" class="docs-tab-pane hidden">
+        <div class="flowchart-gallery">
+          <div class="flowchart-card">
+            <h4>1. End-to-End "Basket vs. Box" Statistical Arbitrage &amp; PyTorch Lead-Lag Pipeline</h4>
+            <p class="text-muted">Full data-flow from 60ms microstructure ticks through NAV Box replication, PyTorch temporal cross-attention, and multi-leg DMA execution.</p>
+            <img src="/docs/assets/system_architecture_flowchart.png" alt="System Architecture Flowchart" class="docs-img" />
+          </div>
+          <div class="flowchart-card">
+            <h4>2. PyTorch TemporalCrossAttentionNet &amp; Conversion/Reversal Decision Flowchart</h4>
+            <p class="text-muted">Detailed neural tensor pipeline (Conv1D → GRU → Cross-Lag Attention) and institutional fee waterfall decision tree.</p>
+            <img src="/docs/assets/pytorch_and_decision_flowchart.png" alt="PyTorch and Decision Flowchart" class="docs-img" />
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 3: ANNOTATED SCREENSHOTS -->
+      <div id="docs-tab-screenshots" class="docs-tab-pane hidden">
+        <div class="screenshot-gallery">
+          <div class="screenshot-item">
+            <img src="/docs/assets/02_jane_street_500_45_gap.png" alt="Jane Street $500.45 Gap" class="docs-img" />
+            <div class="screenshot-explanation">
+              <h4>Screenshot 1: The Jane Street "$500.45 QQQ vs. $500.00 Stock Box" Scenario (+$0.45 Arbitrage Gap)</h4>
+              <p>When QQQ surges to <strong>$500.45</strong> while the underlying constituent stocks (NVDA, AAPL, MSFT, AMZN, META) sum to <strong>$500.00</strong>, the scanner locks in a <strong>+$0.45/share (+9.00 bps)</strong> conversion spread. The Trade Ticket immediately structures a <strong>SELL SHORT 1,000 QQQ ($500,450)</strong> leg paired with exact long share allocations across the 5 stocks ($500,000), netting <strong>+$411.00+ after all DMA slippage, SEC/TAF, and borrow fees</strong>.</p>
+            </div>
+          </div>
+
+          <div class="screenshot-item">
+            <img src="/docs/assets/03_pytorch_lead_lag_nvda.png" alt="PyTorch NVDA Lead-Lag Detection" class="docs-img" />
+            <div class="screenshot-explanation">
+              <h4>Screenshot 2: PyTorch Lead-Lag Predictor Catching an NVDA +1.85% Breakout (100ms Head Start)</h4>
+              <p>When <strong>NVDA jumps +1.85%</strong>, the Synthetic Stock Box rises immediately while QQQ lags behind by ~100–150ms. The <strong>PyTorch TemporalCrossAttentionNet</strong> (Conv1D + GRU + Cross-Lag Attention) identifies the positive cross-correlation peak at <strong>τ* = 100ms</strong>, shifts temporal attention to the 50ms–150ms lookback lags, and forecasts the upcoming QQQ catch-up jump.</p>
+            </div>
+          </div>
+
+          <div class="screenshot-item">
+            <img src="/docs/assets/04_3d_price_gap_surface.png" alt="3D Price Gap Surface" class="docs-img" />
+            <div class="screenshot-explanation">
+              <h4>Screenshot 3: Interactive WebGL 3D Price Gap Surface (Time × Lag τ &amp; NVDA Shock × Lag)</h4>
+              <p>Renders the three-dimensional arbitrage basis topology <strong>Z = QQQ − Box ($)</strong>. Amber/Crimson ridges (Z &gt; +$0.12) mark overpriced ETF regimes (Sell QQQ / Buy Stock Basket), while Emerald troughs (Z &lt; -$0.12) mark underpriced ETF regimes (Buy QQQ / Short Stock Basket).</p>
+            </div>
+          </div>
+
+          <div class="screenshot-item">
+            <img src="/docs/assets/05_arbitrage_trade_ticket_blotter.png" alt="Arbitrage Trade Ticket and Blotter" class="docs-img" />
+            <div class="screenshot-explanation">
+              <h4>Screenshot 4: Live Multi-Leg Arbitrage Trade Ticket, DMA Fee Waterfall &amp; Executed PnL Blotter</h4>
+              <p>Shows the exact share breakdown per 1,000 QQQ lot, itemizes Gross Spread Capture, PyTorch Lead-Lag Alpha Boost, Midpoint Peg Slippage (-$28.00), SEC Sec. 31 / TAF / Exchange Fees (-$9.00), and Intraday Borrow (-$2.00), and logs each atomic multi-leg fill with microsecond latency in the Realized PnL Ledger.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="/static/app.js"></script>
 </body>
 </html>
+
