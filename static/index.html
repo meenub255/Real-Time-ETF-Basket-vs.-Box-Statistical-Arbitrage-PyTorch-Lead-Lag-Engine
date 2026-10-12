@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QQQ Basket vs. Box Arbitrage Scanner | PyTorch Lead-Lag Terminal</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <!-- TOP INSTITUTIONAL TELEMETRY & SCENARIO BAR -->
+  <header class="top-header">
+    <div class="brand-block">
+      <div class="brand-badge">STAT-ARB // DESK</div>
+      <div>
+        <h1 class="brand-title">QQQ "BASKET vs. BOX" ARBITRAGE SCANNER</h1>
+        <p class="brand-subtitle">
+          Real-Time ETF NAV Replication (<span class="mono">NVDA · AAPL · MSFT · AMZN · META</span>) + PyTorch Millisecond Lead-Lag Engine
+        </p>
+      </div>
+    </div>
+
+    <!-- CORE HERO KPI STRIP: QQQ vs BOX vs GAP -->
+    <div class="hero-kpi-strip">
+      <div class="kpi-card">
+        <span class="kpi-label">QQQ ETF MARKET PRICE</span>
+        <div class="kpi-value-row">
+          <span id="kpi-qqq-price" class="kpi-value mono">$500.45</span>
+          <span id="kpi-qqq-ret" class="kpi-delta mono">+0.00 bps</span>
+        </div>
+        <span id="kpi-qqq-bbo" class="kpi-sub mono">Bid $500.43 · Ask $500.47</span>
+      </div>
+
+      <div class="kpi-operator">−</div>
+
+      <div class="kpi-card">
+        <span class="kpi-label">SYNTHETIC STOCK BOX SUM</span>
+        <div class="kpi-value-row">
+          <span id="kpi-box-price" class="kpi-value mono accent-cyan">$500.00</span>
+          <span id="kpi-box-ret" class="kpi-delta mono">+0.00 bps</span>
+        </div>
+        <span class="kpi-sub mono">Top-5 Replication Box (Normalized)</span>
+      </div>
+
+      <div class="kpi-operator">=</div>
+
+      <div id="kpi-gap-card" class="kpi-card kpi-gap-highlight">
+        <div class="kpi-label-row">
+          <span class="kpi-label">LIVE ARBITRAGE PRICE GAP</span>
+          <span id="kpi-zscore" class="z-pill mono">Z: +0.00σ</span>
+        </div>
+        <div class="kpi-value-row">
+          <span id="kpi-gap-usd" class="kpi-value mono">+$0.4500</span>
+          <span id="kpi-gap-bps" class="kpi-delta mono">(+9.00 bps)</span>
+        </div>
+        <span id="kpi-arb-direction" class="kpi-sub mono">SELL OVERPRICED QQQ · BUY STOCK BOX</span>
+      </div>
+    </div>
+
+    <!-- STREAM STATUS & SCENARIO SHOCK CONTROLS -->
+    <div class="shock-toolbar">
+      <div class="toolbar-top">
+        <span class="status-dot" id="ws-status-dot"></span>
+        <span id="ws-status-text" class="mono">LIVE 60ms MICROSTRUCTURE STREAM</span>
+        <span id="active-shock-pill" class="shock-pill mono">Normal Microstructure Flow</span>
+      </div>
+      <div class="shock-buttons">
+        <button class="btn btn-amber" onclick="triggerShock('JANE_STREET_500_45')" title="Set QQQ to $500.45 and Stock Box to $500.00 (+$0.45 Arbitrage Gap)">
+          ⚡ Jane Street $500.45 vs $500 Gap
+        </button>
+        <button class="btn btn-emerald" onclick="triggerShock('NVDA_BREAKOUT')" title="Inject instant +1.85% NVDA breakout before QQQ reacts">
+          🚀 NVDA +1.85% Lead Jump
+        </button>
+        <button class="btn btn-crimson" onclick="triggerShock('MEGA_CAP_DIP')" title="Drop constituents first while QQQ lags high">
+          📉 Mega-Cap Flash Dip
+        </button>
+        <button class="btn btn-cyan" onclick="triggerShock('BOX_DISCOUNT_SWEEP')" title="Sweep QQQ -$0.44 below the Constituent Box">
+          🌊 QQQ -$0.44 Discount
+        </button>
+        <button class="btn btn-neutral" onclick="syncYahooPrices(true)" title="Fetch live market quotes from Yahoo Finance API">
+          🌐 Sync Yahoo Live
+        </button>
+        <button id="btn-pause-stream" class="btn btn-outline" onclick="togglePauseStream()">
+          ⏸ Freeze Tick
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN 2x2 INSTITUTIONAL QUANT WORKSPACE GRID -->
+  <main class="workspace-grid">
+    <!-- PANEL 1 (TOP LEFT): LIVE QQQ vs SYNTHETIC BOX CHART & CONSTITUENT BASKET TAPE -->
+    <section class="panel">
+      <div class="panel-header">
+        <div>
+          <h2 class="panel-title">
+            <span class="panel-index">01</span> LIVE QQQ ETF vs. REAL-TIME CONSTITUENT BOX TRACKER
+          </h2>
+          <p class="panel-desc">
+            Tick-by-tick comparison of QQQ market price against the live sum of its top stocks (<span class="mono">NVDA, AAPL, MSFT, AMZN, META</span>)
+          </p>
+        </div>
+        <div class="panel-badges">
+          <span class="badge badge-cyan mono" id="source-mode-badge">HYBRID_LIVE_SIM</span>
+          <span class="badge badge-dark mono" id="tick-counter-badge">Tick #0</span>
+        </div>
+      </div>
+
+      <!-- Dual Live Price & Spread Chart -->
+      <div id="chart-price-box" class="chart-container-medium"></div>
+
+      <!-- Constituent Basket Real-Time Sum Table -->
+      <div class="subpanel-title-row">
+        <span class="subpanel-title">CONSTITUENT BOX REPLICATION LEG WEIGHTS & REAL-TIME SUM</span>
+        <span class="subpanel-note mono">Sum(Shares_i × Price_i) = Implied Box NAV ($)</span>
+      </div>
+      <div class="table-wrapper">
+        <table class="quant-table">
+          <thead>
+            <tr>
+              <th>TICKER</th>
+              <th>CONSTITUENT</th>
+              <th class="num">LIVE PRICE</th>
+              <th class="num">BID / ASK</th>
+              <th class="num">TICK Δ (bps)</th>
+              <th class="num">QQQ RAW WT</th>
+              <th class="num">BOX NORM WT</th>
+              <th class="num">SHARES / QQQ</th>
+              <th class="num">BOX VALUE ($)</th>
+            </tr>
+          </thead>
+          <tbody id="constituent-table-body">
+            <!-- Populated dynamically via WebSocket -->
+          </tbody>
+          <tfoot>
+            <tr class="table-footer-row">
+              <td colspan="5" class="mono"><strong>SYNTHETIC BOX REAL-TIME SUM (PER 1 QQQ SHARE)</strong></td>
+              <td class="num mono" id="foot-raw-wt">35.97%</td>
+              <td class="num mono">100.00%</td>
+              <td class="num mono">5-Stock Basket</td>
+              <td class="num mono accent-cyan" id="foot-box-sum">$500.00</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </section>
+
+    <!-- PANEL 2 (TOP RIGHT): PYTORCH LEAD-LAG PREDICTOR (NVDA -> QQQ MILLISECOND HEAD START) -->
+    <section class="panel">
+      <div class="panel-header">
+        <div>
+          <h2 class="panel-title">
+            <span class="panel-index">02</span> PYTORCH LEAD-LAG PREDICTOR (<span class="mono">TemporalCrossAttentionNet</span>)
+          </h2>
+          <p class="panel-desc">
+            Detects when <span class="mono">NVDA</span> jumps before <span class="mono">QQQ</span> reacts — estimating optimal millisecond head start & expected ΔQQQ
+          </p>
+        </div>
+        <div class="panel-badges">
+          <span class="badge badge-purple mono" id="pytorch-loss-badge">Huber Loss: 0.042</span>
+          <span class="badge badge-dark mono" id="pytorch-latency-badge">Infer: 0.35 ms</span>
+        </div>
+      </div>
+
+      <!-- Lead-Lag Head Start Telemetry Strip -->
+      <div class="lead-lag-hero" id="lead-lag-banner">
+        <div class="ll-metric">
+          <span class="ll-label">DETECTED NVDA → QQQ LEAD TIME</span>
+          <span class="ll-value mono accent-amber" id="ll-optimal-lag">100 ms Head Start</span>
+          <span class="ll-sub mono" id="ll-peak-corr">Peak Cross-Corr: r = +0.74</span>
+        </div>
+        <div class="ll-metric">
+          <span class="ll-label">NVDA IMPULSE vs. UNREACTED QQQ</span>
+          <span class="ll-value mono" id="ll-nvda-impulse">+0.00 bps</span>
+          <span class="ll-sub mono" id="ll-unreacted-gap">Unreacted QQQ Lag: $0.0000</span>
+        </div>
+        <div class="ll-metric">
+          <span class="ll-label">PYTORCH PREDICTED ΔQQQ (NEXT 200ms)</span>
+          <span class="ll-value mono" id="ll-pred-delta">+0.00 bps ($0.0000)</span>
+          <span class="ll-sub mono" id="ll-pred-target">Target QQQ: $500.00</span>
+        </div>
+        <div class="ll-metric">
+          <span class="ll-label">NEURAL SIGNAL & CONFIDENCE</span>
+          <span class="ll-value mono" id="ll-signal-badge">NEUTRAL</span>
+          <div class="confidence-bar-wrap">
+            <div id="ll-conf-bar" class="confidence-bar-fill" style="width: 55%"></div>
+          </div>
+          <span class="ll-sub mono" id="ll-conf-text">Confidence: 55.0%</span>
+        </div>
+      </div>
+
+      <!-- Dual Neural Charts: Cross-Correlation Curve & Attention / Attribution -->
+      <div class="dual-chart-row">
+        <div class="half-chart-box">
+          <div class="mini-chart-header">
+            <span>NVDA → QQQ LEAD-LAG CROSS-CORRELATION PROFILE</span>
+            <span class="mono text-muted">Lag τ ∈ [-300ms, +300ms]</span>
+          </div>
+          <div id="chart-lead-lag-corr" class="chart-container-small"></div>
+        </div>
+        <div class="half-chart-box">
+          <div class="mini-chart-header">
+            <span>PYTORCH TEMPORAL ATTENTION & CONSTITUENT LEAD SCORE</span>
+            <span class="mono text-muted">Lag Weights & Attribution</span>
+          </div>
+          <div id="chart-attention-weights" class="chart-container-small"></div>
+        </div>
+      </div>
+
+      <!-- Constituent Lead Attribution Pills -->
+      <div class="attribution-strip" id="constituent-attribution-strip">
+        <!-- Populated dynamically -->
+      </div>
+    </section>
+
+    <!-- PANEL 3 (BOTTOM LEFT): 3D PRICE GAP SURFACE -->
+    <section class="panel">
+      <div class="panel-header">
+        <div>
+          <h2 class="panel-title">
+            <span class="panel-index">03</span> 3D ARBITRAGE PRICE GAP SURFACE (<span class="mono">QQQ − BOX</span>)
+          </h2>
+          <p class="panel-desc">
+            Interactive WebGL 3D topology of the dollar arbitrage spread across Lead-Lag Horizon (ms) and Time / NVDA Shock Regimes
+          </p>
+        </div>
+        <div class="panel-badges">
+          <button id="btn-surf-temporal" class="btn btn-xs btn-active" onclick="setSurfaceMode('temporal')">
+            Live Time × Lag 3D
+          </button>
+          <button id="btn-surf-parametric" class="btn btn-xs btn-outline" onclick="setSurfaceMode('parametric')">
+            NVDA Shock × Lag 3D
+          </button>
+        </div>
+      </div>
+
+      <div id="chart-surface-3d" class="chart-container-3d"></div>
+
+      <div class="surface-legend-bar mono">
+        <span><span class="dot dot-amber"></span> <strong>Z &gt; +$0.12 (Peak Ridge):</strong> QQQ Overpriced → SELL QQQ / BUY Stock Basket</span>
+        <span><span class="dot dot-emerald"></span> <strong>Z &lt; -$0.12 (Deep Trough):</strong> QQQ Underpriced → BUY QQQ / SHORT Stock Basket</span>
+      </div>
+    </section>
+
+    <!-- PANEL 4 (BOTTOM RIGHT): LIVE ARBITRAGE TRADE TICKET & EXECUTION BLOTTER -->
+    <section class="panel">
+      <div class="panel-header">
+        <div>
+          <h2 class="panel-title">
+            <span class="panel-index">04</span> LIVE ARBITRAGE TRADE TICKET & NET PROFIT ENGINE
+          </h2>
+          <p class="panel-desc">
+            Exact multi-leg basket order to lock in the <span class="mono">QQQ vs. Box</span> price gap with full institutional fee & slippage waterfall
+          </p>
+        </div>
+        <div class="panel-badges">
+          <span id="ticket-status-badge" class="badge badge-emerald mono">LOCKED ARBITRAGE OPPORTUNITY</span>
+        </div>
+      </div>
+
+      <!-- Ticket Configuration & Action Header -->
+      <div class="ticket-banner" id="ticket-banner">
+        <div class="ticket-headline-col">
+          <span class="ticket-strategy-tag mono" id="ticket-strategy-type">CONVERSION ARB // SHORT ETF vs. LONG BOX</span>
+          <h3 class="ticket-headline" id="ticket-headline">SELL OVERPRICED QQQ / BUY CHEAPER STOCK BASKET</h3>
+          <div class="ticket-legs-overview mono">
+            <span id="ticket-qqq-pill" class="leg-pill leg-sell">SELL SHORT 1,000 QQQ @ $500.45 ($500,450)</span>
+            <span class="leg-arrow">⇄</span>
+            <span id="ticket-box-pill" class="leg-pill leg-buy">BUY 5-STOCK BOX @ $500.00 ($500,000)</span>
+          </div>
+        </div>
+
+        <div class="ticket-controls-col">
+          <div class="control-group">
+            <label for="lot-size-select">QQQ BASKET SIZE (SHARES)</label>
+            <select id="lot-size-select" class="quant-select mono" onchange="updateTicketConfig()">
+              <option value="100">100 QQQ (~$50k)</option>
+              <option value="500">500 QQQ (~$250k)</option>
+              <option value="1000" selected>1,000 QQQ (~$500k)</option>
+              <option value="5000">5,000 QQQ (~$2.5M)</option>
+              <option value="50000">50,000 QQQ (1 Creation Unit)</option>
+            </select>
+          </div>
+          <div class="control-group">
+            <label class="auto-bot-toggle">
+              <input type="checkbox" id="auto-arb-checkbox" onchange="updateTicketConfig()" />
+              <span class="mono">AUTO-ARB BOT</span>
+            </label>
+          </div>
+          <button id="btn-execute-arb" class="btn-execute" onclick="executeArbitrageTicket()">
+            ⚡ EXECUTE ARBITRAGE BOX
+          </button>
+        </div>
+      </div>
+
+      <!-- Split View: Exact Basket Order Legs (Left) + Gross-to-Net Fee Waterfall (Right) -->
+      <div class="ticket-split-grid">
+        <!-- Exact Basket of Stocks to Buy/Sell -->
+        <div class="ticket-legs-box">
+          <div class="subpanel-title-row">
+            <span class="subpanel-title">EXACT BASKET OF STOCKS TO BUY / SELL</span>
+            <span class="subpanel-note mono" id="ticket-lot-note">Per 1,000 QQQ Lot</span>
+          </div>
+          <table class="quant-table compact-table">
+            <thead>
+              <tr>
+                <th>LEG</th>
+                <th>SIDE</th>
+                <th class="num">EXACT SH</th>
+                <th class="num">EXEC Price</th>
+                <th class="num">NOTIONAL ($)</th>
+              </tr>
+            </thead>
+            <tbody id="ticket-legs-body">
+              <!-- Populated dynamically -->
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Net Profit After Fees Waterfall -->
+        <div class="ticket-economics-box">
+          <div class="subpanel-title-row">
+            <span class="subpanel-title">NET PROFIT AFTER FEES BREAKDOWN</span>
+            <span class="subpanel-note mono">DMA Tier-1 Schedule</span>
+          </div>
+          <div class="econ-list mono">
+            <div class="econ-row">
+              <span>Price Gap Locked per Share:</span>
+              <span id="econ-gap-share" class="econ-val">+$0.4500 / sh</span>
+            </div>
+            <div class="econ-row">
+              <span>Gross Box Arbitrage Spread:</span>
+              <span id="econ-gross-spread" class="econ-val pos">+$450.00</span>
+            </div>
+            <div class="econ-row">
+              <span>PyTorch Lead-Lag Alpha Boost:</span>
+              <span id="econ-lead-alpha" class="econ-val pos">+$24.50</span>
+            </div>
+            <div class="econ-row">
+              <span>Bid/Ask Midpoint Peg Slippage:</span>
+              <span id="econ-slippage" class="econ-val neg">-$28.00</span>
+            </div>
+            <div class="econ-row">
+              <span>SEC Sec. 31 + TAF + Exchange Fees:</span>
+              <span id="econ-reg-fees" class="econ-val neg">-$9.00</span>
+            </div>
+            <div class="econ-row">
+              <span>Intraday Stock Borrow / Clearing:</span>
+              <span id="econ-borrow-fees" class="econ-val neg">-$2.00</span>
+            </div>
+            <div class="econ-row econ-total-row">
+              <span>NET PROFIT AFTER FEES:</span>
+              <span id="econ-net-profit" class="econ-total-val">+$435.50 (+8.71 bps)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Executed Arbitrage Blotter -->
+      <div class="blotter-box">
+        <div class="subpanel-title-row">
+          <span class="subpanel-title">EXECUTED ARBITRAGE BLOTTER & REALIZED PnL LEDGER</span>
+          <div class="blotter-kpis mono">
+            <span>Boxes Filled: <strong id="blotter-count">0</strong></span>
+            <span>Realized Gross: <strong id="blotter-gross" class="pos">$0.00</strong></span>
+            <span>Realized Net (After Fees): <strong id="blotter-net" class="accent-emerald">$0.00</strong></span>
+          </div>
+        </div>
+        <div class="blotter-scroll">
+          <table class="quant-table compact-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>TIME</th>
+                <th>MODE</th>
+                <th>QQQ LEG</th>
+                <th class="num">QQQ vs BOX</th>
+                <th class="num">GAP/SH</th>
+                <th class="num">FEES</th>
+                <th class="num">NET PROFIT</th>
+                <th class="num">LATENCY</th>
+              </tr>
+            </thead>
+            <tbody id="blotter-table-body">
+              <tr>
+                <td colspan="9" class="empty-blotter mono">
+                  Click "⚡ EXECUTE ARBITRAGE BOX" or enable "AUTO-ARB BOT" to lock in live Basket vs. Box spreads.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
