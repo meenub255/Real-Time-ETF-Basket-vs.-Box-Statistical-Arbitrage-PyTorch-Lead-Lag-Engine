@@ -36,25 +36,25 @@ An institutional-style statistical arbitrage scanner and quantitative trading te
 ```mermaid
 flowchart TD
     subgraph MarketFeeds["1. Hybrid 60ms Market Microstructure Feeds"]
-        A1["Constituent Quotes (NVDA, AAPL, MSFT, AMZN, META)<br/>Yahoo Finance Live Sync + Hawkes Jump-Diffusion"]
-        A2["QQQ ETF Market BBO Stream<br/>Bid / Ask / Last Price + OU Dislocation"]
-        A3["Interactive Shock Injectors<br/>Jane Street $500.45 Gap | NVDA +1.85% Breakout | Mega-Cap Dip"]
+        A1["Constituent Quotes: NVDA, AAPL, MSFT, AMZN, META (Yahoo Live + Hawkes Sim)"]
+        A2["QQQ ETF Market BBO Stream: Bid / Ask / Last Price + OU Dislocation"]
+        A3["Interactive Shock Injectors: Jane Street $500.45 Gap | NVDA +1.85% Breakout | Mega-Cap Dip"]
     end
 
     subgraph PricingAndNeural["2. Real-Time NAV Box & PyTorch Lead-Lag Engine"]
-        B1["Synthetic Stock Box Replicator<br/>Box($) = Σ (Shares_i × Price_i) = $500.00"]
-        B2["Arbitrage Spread & Statistical Z-Score<br/>Gap($) = P_QQQ(t) − P_Box(t) | Z = (Gap − μ) / σ"]
-        B3["PyTorch TemporalCrossAttentionNet<br/>7-Channel 20-Tick Tensor → Conv1D → GRU → Cross-Lag Attention"]
-        B4["Lead-Lag Prediction Output<br/>Optimal Lag τ* (100ms) | Predicted ΔQQQ (+200ms) | Confidence %"]
+        B1["Synthetic Stock Box Replicator: Box($) = Sum(Shares_i * Price_i) = $500.00"]
+        B2["Arbitrage Spread & Statistical Z-Score: Gap($) = P_QQQ(t) - P_Box(t)"]
+        B3["PyTorch TemporalCrossAttentionNet: 7-Channel 20-Tick Tensor -> Conv1D -> GRU -> Attention"]
+        B4["Lead-Lag Prediction Output: Optimal Lag 100ms | Predicted dQQQ (+200ms) | Confidence %"]
     end
 
     subgraph VisualizationAndExecution["3. 3D Topology & Multi-Leg DMA Execution Engine"]
-        C1["WebGL 3D Price Gap Surface<br/>Mode A: Rolling Time × Lag τ (ms)<br/>Mode B: NVDA Shock (%) × Reaction Lag (ms)"]
-        C2{"Spread vs. DMA Fee Threshold<br/>|Gap| × Lot + Alpha > Fees?"}
-        C3["CONVERSION ARB (Gap > +$0.05)<br/>SELL SHORT Overpriced QQQ ETF<br/>BUY Cheaper 5-Stock Basket"]
-        C4["REVERSAL ARB (Gap < -$0.05)<br/>BUY Underpriced QQQ ETF<br/>SELL SHORT Overpriced 5-Stock Basket"]
-        C5["Gross-to-Net DMA Fee Waterfall<br/>Deduct Midpoint Slippage (-0.28 bps), SEC/TAF (-0.09 bps), Borrow (-0.04 bps)"]
-        C6["Executed Arbitrage Blotter & Realized PnL Ledger<br/>Atomic Fill (~145 μs Latency) | Manual or Auto-Arb Bot"]
+        C1["WebGL 3D Price Gap Surface: Rolling Time x Lag (ms) & NVDA Shock x Reaction Lag"]
+        C2{"Spread vs. DMA Fee Threshold: |Gap| * Lot + Alpha > Fees?"}
+        C3["CONVERSION ARB (Gap > +$0.05): SELL SHORT Overpriced QQQ ETF & BUY Cheaper 5-Stock Basket"]
+        C4["REVERSAL ARB (Gap < -$0.05): BUY Underpriced QQQ ETF & SELL SHORT Overpriced 5-Stock Basket"]
+        C5["Gross-to-Net DMA Fee Waterfall: Deduct Midpoint Slippage (-0.28 bps), SEC/TAF (-0.09 bps), Borrow (-0.04 bps)"]
+        C6["Executed Arbitrage Blotter & Realized PnL Ledger: Atomic Fill (~145 us Latency)"]
     end
 
     A1 --> B1
@@ -81,22 +81,22 @@ flowchart TD
 ```mermaid
 sequenceDiagram
     autonumber
-    participant MKT as Nasdaq Order Book (NVDA & Top 5)
-    participant BOX as Synthetic Box NAV Engine
+    participant MKT as Nasdaq Order Book (NVDA and Top 5)
+    participant NAV as Synthetic Box NAV Engine
     participant PT as PyTorch TemporalCrossAttentionNet
     participant ETF as QQQ ETF Order Book
-    participant BOT as Arbitrage Ticket & DMA Router
+    participant BOT as Arbitrage Ticket and DMA Router
 
-    MKT->>BOX: t = 0 ms: NVDA jumps +1.85% (Order-Flow Burst)
-    BOX->>BOX: t = 1 ms: Synthetic Box reprices immediately (+45.8 bps)
-    MKT->>PT: t = 2 ms: Ingest 20-tick × 7-channel return tensor
-    PT->>PT: t = 2.35 ms: Conv1D + GRU + Cross-Lag Attention (Infer: 0.35 ms)
-    PT-->>BOT: t = 3 ms: Emit BULLISH_LEAD Alert (Optimal Lag τ* = 100 ms, Pred ΔQQQ)
-    Note over ETF,BOT: QQQ has NOT yet reacted (100ms–150ms ETF inertia window)
-    BOT->>ETF: t = 4 ms: Execute Multi-Leg Box Arbitrage (Midpoint Peg DMA)
-    ETF-->>BOT: t = 4.15 ms: Atomic Fill Confirmed (Latency: 145 μs)
-    ETF->>ETF: t = 110 ms: QQQ market price catches up to Synthetic Box
-    BOT->>BOT: Lock in Gross Spread + PyTorch Lead-Lag Alpha − DMA Fees
+    MKT->>NAV: [t = 0 ms] NVDA jumps +1.85% on order-flow burst
+    NAV->>NAV: [t = 1 ms] Synthetic Box reprices immediately (+45.8 bps)
+    MKT->>PT: [t = 2 ms] Ingest 20-tick x 7-channel return tensor
+    PT->>PT: [t = 2.35 ms] Conv1D + GRU + Cross-Lag Attention (0.35 ms inference)
+    PT-->>BOT: [t = 3 ms] Emit BULLISH_LEAD Alert (Optimal Lag = 100 ms, Pred dQQQ)
+    Note over ETF,BOT: QQQ has NOT yet reacted (100ms to 150ms ETF inertia window)
+    BOT->>ETF: [t = 4 ms] Execute Multi-Leg Box Arbitrage via Midpoint Peg DMA
+    ETF-->>BOT: [t = 4.15 ms] Atomic Fill Confirmed (Latency 145 us)
+    ETF->>ETF: [t = 110 ms] QQQ market price catches up to Synthetic Box
+    BOT->>BOT: Lock in Gross Spread + PyTorch Lead-Lag Alpha - DMA Fees
 ```
 
 ---
